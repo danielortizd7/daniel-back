@@ -25,7 +25,8 @@ connectDB();
 // Configuración de CORS
 const whitelist = [
     'http://localhost:5173',  // Frontend en desarrollo local
-    'https://laboratorio-sena.vercel.app', // Frontend en producción (ajusta este dominio al tuyo real)
+    'https://laboratorio-sena.vercel.app', // Frontend en producción
+    'https://web-sena-lab.vercel.app' // Frontend en Vercel
 ];
 
 app.use(cors({
