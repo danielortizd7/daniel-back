@@ -8,15 +8,29 @@ const firmaValidators = {
             .trim()
             .matches(/^MUESTRA-[A-Z0-9]+$/).withMessage('Formato de ID inválido'),
 
-        body('cedulaLaboratorista')
-            .notEmpty().withMessage('La cédula del laboratorista es requerida')
+        body('cedulaAdministrador')
+            .notEmpty().withMessage('La cédula del administrador es requerida')
             .isLength({ min: 8, max: 10 }).withMessage('La cédula debe tener entre 8 y 10 caracteres')
             .matches(/^\d+$/).withMessage('La cédula debe contener solo números'),
 
-        body('firmaLaboratorista')
-            .notEmpty().withMessage('La firma del laboratorista es requerida')
+        body('firmaAdministrador')
+            .notEmpty().withMessage('La firma del administrador es requerida')
             .custom((value) => {
                 if (!value.startsWith('data:image/')) {
+                    throw new Error('La firma debe ser una imagen en base64');
+                }
+                return true;
+            }),
+
+        body('cedulaCliente')
+            .optional()
+            .isLength({ min: 8, max: 10 }).withMessage('La cédula debe tener entre 8 y 10 caracteres')
+            .matches(/^\d+$/).withMessage('La cédula debe contener solo números'),
+
+        body('firmaCliente')
+            .optional()
+            .custom((value) => {
+                if (value && !value.startsWith('data:image/')) {
                     throw new Error('La firma debe ser una imagen en base64');
                 }
                 return true;
@@ -115,10 +129,11 @@ const resultadoValidators = {
             .trim()
             .notEmpty()
             .withMessage('El ID de muestra es obligatorio'),
-        body('cedulaLaboratorista')
+        body('observaciones')
+            .optional()
+            .isString()
+            .withMessage('Las observaciones deben ser texto')
             .trim()
-            .notEmpty()
-            .withMessage('La cédula del laboratorista es obligatoria')
     ]
 };
 

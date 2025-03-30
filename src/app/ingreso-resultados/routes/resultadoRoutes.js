@@ -1,21 +1,24 @@
 const express = require("express");
 const router = express.Router();
 const resultadoController = require("../controllers/resultadoController");
-const { verificarLaboratorista } = require("../../../shared/middleware/authMiddleware");
+const { verificarLaboratorista, verificarRolAdministrador } = require("../../../shared/middleware/authMiddleware");
 const { resultadoValidators } = require("../../../shared/validators");
 
-// Rutas protegidas - requieren autenticación como laboratorista
-router.use(verificarLaboratorista);
+// Obtener resultados de una muestra específica - accesible para ambos roles
+router.get("/muestra/:idMuestra", 
+  resultadoController.obtenerResultados
+);
 
-// Obtener todos los resultados
+// Obtener todos los resultados - accesible para ambos roles
 router.get("/resultados", 
   resultadoController.obtenerTodosResultados
 );
 
-// Obtener resultados de una muestra específica
-router.get("/muestra/:idMuestra", 
-  resultadoController.obtenerResultados
-);
+// Las siguientes rutas requieren ser laboratorista
+router.use([
+  "/registrar/:idMuestra",
+  "/editar/:idMuestra"
+], verificarLaboratorista);
 
 // Registrar resultados de una muestra
 router.post("/registrar/:idMuestra", 
@@ -29,8 +32,9 @@ router.put("/editar/:idMuestra",
   resultadoController.editarResultado
 );
 
-// Verificar resultados de una muestra
+// Verificar resultados de una muestra (solo administrador)
 router.post("/verificar/:idMuestra",
+  verificarRolAdministrador,
   resultadoController.verificarResultado
 );
 

@@ -1,50 +1,47 @@
-const { validationResult } = require('express-validator');
 const generarPDF = require("../../../shared/utils/generarPDF");
 const { Muestra } = require("../../../shared/models/muestrasModel");
 const ResponseHandler = require("../../../shared/utils/responseHandler");
-const { NotFoundError, ValidationError } = require("../../../shared/errors/AppError");
+const path = require("path");
+const fs = require("fs");
 
 const generarReportePDF = async (req, res) => {
     try {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            throw new ValidationError('Datos inválidos', errors.array());
-        }
-
         const { idMuestra } = req.params;
+        console.log("Generando PDF para muestra:", idMuestra);
 
         const muestra = await Muestra.findOne({ id_muestra: idMuestra.trim() })
             .collation({ locale: "es", strength: 2 });
 
         if (!muestra) {
-            throw new NotFoundError("Muestra no encontrada");
+            return ResponseHandler.error(res, { message: "Muestra no encontrada" });
         }
 
-        if (!muestra.firmas) {
-            throw new ValidationError("La muestra no tiene firmas registradas");
-        }
+        // Obtener datos del administrador del historial
+        const adminData = muestra.historial[0] || {};
+        console.log("Datos del administrador:", adminData);
 
-        const { 
-            cedulaCliente, 
-            firmaCliente, 
-            cedulaLaboratorista, 
-            firmaLaboratorista 
-        } = muestra.firmas;
-
-        // Generar el PDF
+        // Generar el PDF sin validaciones
         const rutaPDF = await generarPDF(
             muestra, 
-            cedulaCliente, 
-            firmaCliente, 
-            cedulaLaboratorista, 
-            firmaLaboratorista
+            muestra.documento || '', 
+            '', // firma cliente
+            adminData.cedulaadministrador || 'Admin', 
+            '' // firma admin
         );
 
-        return ResponseHandler.success(
-            res,
-            { rutaPDF },
-            "PDF generado correctamente"
-        );
+        // Construir la ruta completa del archivo
+        const filePath = path.join(process.cwd(), "public", rutaPDF);
+
+        // Verificar si el archivo existe
+        if (!fs.existsSync(filePath)) {
+            console.error("Archivo PDF no encontrado:", filePath);
+            return ResponseHandler.error(res, { message: "PDF no encontrado" });
+        }
+
+        // Enviar el archivo PDF
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename=muestra_${idMuestra}.pdf`);
+        return res.sendFile(filePath);
 
     } catch (error) {
         console.error("Error al generar el PDF:", error);

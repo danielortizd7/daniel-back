@@ -5,7 +5,7 @@ const router = express.Router();
 const { firmaValidators } = require("../../../shared/validators");
 const ResponseHandler = require("../../../shared/utils/responseHandler");
 const firmaController = require("../controllers/firmaController");
-const { verificarDocumento, verificarLaboratorista } = require("../../../shared/middleware/authMiddleware");
+const { verificarDocumento, verificarRolAdministrador } = require("../../../shared/middleware/authMiddleware");
 
 const { guardarFirma, buscarMuestra, obtenerTodasLasFirmas } = require("../controllers/firmaController");
 const { generarReportePDF } = require("../controllers/pdfController");
@@ -22,7 +22,7 @@ router.get(
 router.post(
   "/guardarFirma",
   verificarDocumento,
-  verificarLaboratorista,
+  verificarRolAdministrador,
   firmaValidators.guardarFirma,
   guardarFirma
 );

@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
 const Usuario = require('../models/usuarioModel');
+const { PERMISOS, ROLES_PERMISOS } = require('../config/rolesConfig');
 
 // Función para obtener el payload del token sin verificar la firma
 const decodeToken = (token) => {
@@ -66,6 +67,28 @@ const login = async (req, res) => {
         console.error('Error en login:', error);
         return ResponseHandler.error(res, error);
     }
+};
+
+// Middleware para verificar permisos
+const verificarPermiso = (permisoRequerido) => {
+    return (req, res, next) => {
+        try {
+            if (!req.usuario) {
+                throw new AuthenticationError('Usuario no autenticado');
+            }
+
+            const rol = req.usuario.rol;
+            const permisosUsuario = ROLES_PERMISOS[rol] || [];
+
+            if (!permisosUsuario.includes(permisoRequerido)) {
+                throw new AuthorizationError(`No tiene permisos para realizar esta acción. Se requiere el permiso: ${permisoRequerido}`);
+            }
+
+            next();
+        } catch (error) {
+            next(error);
+        }
+    };
 };
 
 const verificarToken = (req, res, next) => {
@@ -166,7 +189,7 @@ const verificarRolAdministrador = async (req, res, next) => {
             throw new AuthenticationError('Usuario no encontrado en la solicitud');
         }
 
-        if (!req.usuario.esAdmin && req.usuario.rol !== 'administrador') {
+        if (req.usuario.rol !== 'administrador') {
             throw new AuthenticationError(
                 "Acceso denegado. Se requieren permisos de administrador.",
                 { rolActual: req.usuario.rol || "No definido" }
@@ -209,5 +232,7 @@ module.exports = {
     verificarToken,
     verificarDocumento,
     verificarRolAdministrador,
-    verificarLaboratorista
+    verificarLaboratorista,
+    verificarPermiso,
+    PERMISOS
 };

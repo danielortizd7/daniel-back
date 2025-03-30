@@ -35,6 +35,53 @@ const validarValoresNumericos = (datos) => {
   });
 };
 
+const procesarMedicion = (valorCompleto) => {
+  if (!valorCompleto) return null;
+
+  // Si es un string, procesamos el formato "valor unidad"
+  const valorStr = valorCompleto.toString().trim();
+  
+  // Si tiene formato "1.3mg/L" (sin espacio)
+  const matchSinEspacio = valorStr.match(/^([\d.]+)(.+)$/);
+  if (matchSinEspacio) {
+    return {
+      valor: matchSinEspacio[1],
+      unidad: matchSinEspacio[2].trim()
+    };
+  }
+
+  // Si tiene formato "7.5 mv" (con espacio)
+  const partes = valorStr.split(' ');
+  if (partes.length >= 2) {
+    return {
+      valor: partes[0],
+      unidad: partes.slice(1).join(' ').trim()
+    };
+  }
+
+  // Si no tiene unidad
+  return {
+    valor: valorStr,
+    unidad: ''
+  };
+};
+
+const formatearValorCompleto = (valor, unidad) => {
+  if (!valor) return '';
+  return unidad ? `${valor} ${unidad}` : valor;
+};
+
+const crearCambioMedicion = (campo, valorAnterior, valorNuevo) => {
+  const anterior = valorAnterior ? formatearValorCompleto(valorAnterior.valor, valorAnterior.unidad) : "No registrado";
+  const nuevo = formatearValorCompleto(valorNuevo.valor, valorNuevo.unidad);
+  
+  return {
+    valorAnterior: anterior,
+    valorNuevo: nuevo,
+    unidad: valorNuevo.unidad
+  };
+};
+
 exports.registrarResultado = async (req, res) => {
   try {
     const { idMuestra } = req.params;
@@ -44,7 +91,8 @@ exports.registrarResultado = async (req, res) => {
       oxigenoDisuelto,
       nitratos,
       solidosSuspendidos,
-      fosfatos
+      fosfatos,
+      observaciones
     } = req.body;
 
     // Verificar que la muestra existe
@@ -54,11 +102,6 @@ exports.registrarResultado = async (req, res) => {
 
     if (!muestraEncontrada) {
       throw new ValidationError("Muestra no encontrada");
-    }
-
-    // Verificar que la muestra tenga firmas
-    if (!muestraEncontrada.firmas || !muestraEncontrada.firmas.cedulaLaboratorista || !muestraEncontrada.firmas.cedulaCliente) {
-      throw new ValidationError("La muestra debe tener firmas registradas para poder ingresar resultados");
     }
 
     // Verificar que la muestra esté en estado "Recibida"
@@ -73,53 +116,62 @@ exports.registrarResultado = async (req, res) => {
     }
 
     // Validar que al menos un análisis tenga valor
-    if (!pH?.valor && !turbidez?.valor && !oxigenoDisuelto?.valor && 
-        !nitratos?.valor && !solidosSuspendidos?.valor && !fosfatos?.valor) {
+    if (!pH && !turbidez && !oxigenoDisuelto && 
+        !nitratos && !solidosSuspendidos && !fosfatos) {
       throw new ValidationError("Debe ingresar al menos un resultado");
     }
 
     // Obtener información del laboratorista del token
     const laboratorista = req.laboratorista;
+    const fechaRegistro = new Date();
+
+    // Procesar los valores iniciales
+    const valoresIniciales = {
+      pH: procesarMedicion(pH),
+      turbidez: procesarMedicion(turbidez),
+      oxigenoDisuelto: procesarMedicion(oxigenoDisuelto),
+      nitratos: procesarMedicion(nitratos),
+      solidosSuspendidos: procesarMedicion(solidosSuspendidos),
+      fosfatos: procesarMedicion(fosfatos)
+    };
+
+    // Crear el registro inicial de cambios
+    const cambiosIniciales = {};
+    Object.entries(valoresIniciales).forEach(([campo, valor]) => {
+      if (valor) {
+        cambiosIniciales[campo] = {
+          valorAnterior: "No registrado",
+          valorNuevo: valor.valor,
+          unidad: valor.unidad
+        };
+      }
+    });
+
+    if (observaciones) {
+      cambiosIniciales.observaciones = {
+        valorAnterior: "No registrado",
+        valorNuevo: observaciones
+      };
+    }
+
+    const historialInicial = {
+      nombre: laboratorista.nombre,
+      cedula: laboratorista.documento,
+      fecha: fechaRegistro,
+      cambiosRealizados: cambiosIniciales
+    };
 
     const resultadoOrdenado = {
       idMuestra: idMuestra.trim(),
       documento: muestraEncontrada.documento,
       fechaHora: muestraEncontrada.fechaHora,
       tipoMuestreo: muestraEncontrada.tipoMuestreo,
-      pH: pH?.valor ? { 
-        valor: pH.valor.toString().trim(),
-        unidad: "mg/L"
-      } : undefined,
-      turbidez: turbidez?.valor ? {
-        valor: turbidez.valor.toString().trim(),
-        unidad: "NTU"
-      } : undefined,
-      oxigenoDisuelto: oxigenoDisuelto?.valor ? {
-        valor: oxigenoDisuelto.valor.toString().trim(),
-        unidad: "mg/L"
-      } : undefined,
-      nitratos: nitratos?.valor ? {
-        valor: nitratos.valor.toString().trim(),
-        unidad: "mg/L"
-      } : undefined,
-      solidosSuspendidos: solidosSuspendidos?.valor ? {
-        valor: solidosSuspendidos.valor.toString().trim(),
-        unidad: "mg/L"
-      } : undefined,
-      fosfatos: fosfatos?.valor ? {
-        valor: fosfatos.valor.toString().trim(),
-        unidad: "mg/L"
-      } : undefined,
+      ...valoresIniciales,
+      observaciones: observaciones || "Sin observaciones",
       verificado: false,
       cedulaLaboratorista: laboratorista.documento,
       nombreLaboratorista: laboratorista.nombre,
-      historialCambios: [
-        {
-          nombre: laboratorista.nombre,
-          cedula: laboratorista.documento,
-          fecha: new Date()
-        }
-      ]
+      historialCambios: [historialInicial]
     };
 
     const nuevoResultado = await Resultado.create(resultadoOrdenado);
@@ -206,85 +258,79 @@ exports.editarResultado = async (req, res) => {
     }
 
     // Validar que al menos un campo tenga valor
-    if (!pH?.valor && !turbidez?.valor && !oxigenoDisuelto?.valor && 
-        !nitratos?.valor && !solidosSuspendidos?.valor && !fosfatos?.valor) {
+    if (!pH && !turbidez && !oxigenoDisuelto && 
+        !nitratos && !solidosSuspendidos && !fosfatos) {
       throw new ValidationError("Debe ingresar al menos un resultado");
     }
 
-    // Preparar los cambios
-    const cambios = {};
-    let hayCambios = false;
-    const cambiosRealizados = {}; // Objeto para almacenar los cambios realizados
-
-    // Función auxiliar para actualizar un campo si hay cambios
-    const actualizarCampo = (campo, nuevoValor) => {
-      if (nuevoValor?.valor !== undefined) {
-        const valor = nuevoValor.valor.toString().trim();
-        
-        // Solo registrar cambio si el valor es diferente
-        if (!resultado[campo] || resultado[campo].valor !== valor) {
-          // Guardar el valor anterior y el nuevo valor
-          cambiosRealizados[campo] = {
-            valorAnterior: resultado[campo]?.valor || 'No registrado',
-            valorNuevo: valor,
-            unidad: resultado[campo]?.unidad || (campo === 'turbidez' ? 'NTU' : 'mg/L')
-          };
-
-          // Actualizar el valor en el resultado
-          cambios[campo] = {
-            valor: valor,
-            unidad: resultado[campo]?.unidad || (campo === 'turbidez' ? 'NTU' : 'mg/L')
-          };
-          resultado[campo] = cambios[campo];
-          hayCambios = true;
-        }
-      }
+    const fechaActualizacion = new Date();
+    const valoresNuevos = {
+      pH: procesarMedicion(pH),
+      turbidez: procesarMedicion(turbidez),
+      oxigenoDisuelto: procesarMedicion(oxigenoDisuelto),
+      nitratos: procesarMedicion(nitratos),
+      solidosSuspendidos: procesarMedicion(solidosSuspendidos),
+      fosfatos: procesarMedicion(fosfatos)
     };
 
-    // Actualizar cada campo si hay cambios
-    actualizarCampo('pH', pH);
-    actualizarCampo('turbidez', turbidez);
-    actualizarCampo('oxigenoDisuelto', oxigenoDisuelto);
-    actualizarCampo('nitratos', nitratos);
-    actualizarCampo('solidosSuspendidos', solidosSuspendidos);
-    actualizarCampo('fosfatos', fosfatos);
-
-    // Manejar las observaciones
-    if (observaciones !== undefined && observaciones !== resultado.observaciones) {
-      // Buscar la última entrada en el historial que tenga observaciones
-      let ultimaObservacion = 'No registrado';
-      if (resultado.historialCambios && resultado.historialCambios.length > 0) {
-        for (let i = resultado.historialCambios.length - 1; i >= 0; i--) {
-          const cambio = resultado.historialCambios[i];
-          if (cambio.cambiosRealizados?.observaciones?.valorNuevo) {
-            ultimaObservacion = cambio.cambiosRealizados.observaciones.valorNuevo;
-            break;
-          }
+    const cambiosRealizados = {};
+    Object.entries(valoresNuevos).forEach(([campo, valorNuevo]) => {
+      if (valorNuevo && resultado[campo]) {
+        const valorAnterior = resultado[campo].valor;
+        
+        if (valorAnterior !== valorNuevo.valor) {
+          cambiosRealizados[campo] = {
+            valorAnterior: valorAnterior,
+            valorNuevo: valorNuevo.valor,
+            unidad: valorNuevo.unidad
+          };
         }
       }
-
-      cambiosRealizados.observaciones = {
-        valorAnterior: resultado.observaciones || ultimaObservacion,
-        valorNuevo: observaciones
-      };
-      cambios.observaciones = observaciones;
-      resultado.observaciones = observaciones;
-      hayCambios = true;
-    }
-
-    if (!hayCambios) {
-      throw new ValidationError("No se realizaron cambios");
-    }
-
-    // Registrar el cambio en el historial con los valores específicos
-    resultado.historialCambios.push({
-      nombre: laboratorista.nombre,
-      cedula: laboratorista.documento,
-      fecha: new Date(),
-      cambiosRealizados: cambiosRealizados
     });
 
-    await resultado.save();
+    // Manejar las observaciones de manera más controlada
+    if (observaciones && observaciones !== resultado.observaciones) {
+      const observacionAnterior = resultado.observaciones || "Sin observaciones";
+      const observacionNueva = observaciones || "Sin observaciones";
+      
+      // Solo registrar el cambio si es diferente
+      if (observacionAnterior !== observacionNueva) {
+        cambiosRealizados.observaciones = {
+          valorAnterior: observacionAnterior,
+          valorNuevo: observacionNueva
+        };
+      }
+    }
+
+    // Solo actualizar si hay cambios
+    if (Object.keys(cambiosRealizados).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No se detectaron cambios para actualizar"
+      });
+    }
+
+    const nuevoHistorial = {
+      nombre: req.laboratorista.nombre,
+      cedula: req.laboratorista.documento,
+      fecha: fechaActualizacion,
+      cambiosRealizados
+    };
+
+    // Actualizar el resultado
+    const resultadoActualizado = await Resultado.findByIdAndUpdate(
+      resultado._id,
+      {
+        $set: {
+          ...valoresNuevos,
+          observaciones: observaciones || resultado.observaciones || "Sin observaciones"
+        },
+        $push: {
+          historialCambios: nuevoHistorial
+        }
+      },
+      { new: true }
+    );
 
     // Actualizar historial de la muestra
     const muestra = await Muestra.findOne({ id_muestra: idMuestra.trim() });
@@ -305,7 +351,7 @@ exports.editarResultado = async (req, res) => {
 
     return ResponseHandler.success(
       res,
-      { resultado },
+      { resultado: resultadoActualizado },
       "Resultado actualizado correctamente"
     );
 
@@ -318,7 +364,8 @@ exports.editarResultado = async (req, res) => {
 exports.verificarResultado = async (req, res) => {
   try {
     const { idMuestra } = req.params;
-    const laboratorista = req.laboratorista;
+    const { observaciones } = req.body;
+    const administrador = req.usuario;
 
     const resultado = await Resultado.findOne({ 
       idMuestra: idMuestra.trim() 
@@ -328,23 +375,37 @@ exports.verificarResultado = async (req, res) => {
       throw new ValidationError("No se encontraron resultados para esta muestra");
     }
 
-    // Verificar que no sea el mismo laboratorista que registró
-    if (resultado.cedulaLaboratorista === laboratorista.documento) {
-      throw new ValidationError("No puede verificar sus propios resultados");
-    }
-
     // Verificar que no esté ya verificado
     if (resultado.verificado) {
       throw new ValidationError("Los resultados ya están verificados");
     }
 
-    resultado.verificado = true;
+    // Crear el registro de verificación
+    const cambiosVerificacion = {
+      verificado: {
+        valorAnterior: false,
+        valorNuevo: true
+      }
+    };
+
+    // Si hay observaciones, incluirlas en el historial
+    if (observaciones) {
+      cambiosVerificacion.observaciones = {
+        valorAnterior: resultado.observaciones || "Sin observaciones",
+        valorNuevo: `[VERIFICACIÓN] ${observaciones}`
+      };
+      resultado.observaciones = `[VERIFICACIÓN] ${observaciones}`;
+    }
+
+    // Agregar entrada al historial
     resultado.historialCambios.push({
-      nombre: laboratorista.nombre,
-      cedula: laboratorista.documento,
-      fecha: new Date()
+      nombre: administrador.nombre,
+      cedula: administrador.documento,
+      fecha: new Date(),
+      cambiosRealizados: cambiosVerificacion
     });
 
+    resultado.verificado = true;
     await resultado.save();
 
     // Actualizar estado de la muestra
@@ -354,10 +415,12 @@ exports.verificarResultado = async (req, res) => {
       $push: {
         historial: {
           estado: "Verificada",
-          cedulaadministrador: laboratorista.documento,
-          nombreadministrador: laboratorista.nombre,
+          cedulaadministrador: administrador.documento,
+          nombreadministrador: administrador.nombre,
           fechaCambio: new Date(),
-          observaciones: "Resultados verificados"
+          observaciones: observaciones 
+            ? `Resultados verificados por administrador: ${observaciones}`
+            : "Resultados verificados por administrador"
         }
       }
     });
@@ -365,7 +428,9 @@ exports.verificarResultado = async (req, res) => {
     return ResponseHandler.success(
       res,
       { resultado },
-      "Resultados verificados exitosamente"
+      observaciones 
+        ? `Resultados verificados exitosamente con observaciones: ${observaciones}`
+        : "Resultados verificados exitosamente"
     );
 
   } catch (error) {

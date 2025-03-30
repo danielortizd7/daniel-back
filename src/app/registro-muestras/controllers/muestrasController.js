@@ -125,21 +125,73 @@ const obtenerMuestra = async (req, res, next) => {
 
 const crearMuestra = async (req, res, next) => {
     try {
+        console.log('Iniciando creación de muestra...');
+        console.log('Datos recibidos:', JSON.stringify({
+            documento: req.body.documento,
+            tipoMuestra: req.body.tipoMuestra,
+            firmas: req.body.firmas
+        }, null, 2));
+        
         const usuario = obtenerDatosUsuario(req);
+        console.log('Usuario autenticado:', JSON.stringify({
+            documento: usuario.documento,
+            nombre: usuario.nombre,
+            rol: usuario.rol
+        }, null, 2));
+
+        // Validación básica de firmas
+        if (!req.body.firmas?.firmaAdministrador?.firma || !req.body.firmas?.firmaCliente?.firma) {
+            throw new ValidationError('Se requieren las firmas del administrador y del cliente');
+        }
+
+        // Validar que las firmas no estén vacías
+        if (req.body.firmas.firmaAdministrador.firma.trim() === '' || req.body.firmas.firmaCliente.firma.trim() === '') {
+            throw new ValidationError('Las firmas no pueden estar vacías');
+        }
+
         const muestra = await muestrasService.crearMuestra(req.body, usuario);
+        console.log('Muestra creada exitosamente con ID:', muestra.id_muestra);
+        
         ResponseHandler.success(res, { muestra }, 'Muestra creada exitosamente');
     } catch (error) {
+        console.error('Error al crear muestra:', error.message);
+        if (error instanceof ValidationError) {
+            return ResponseHandler.error(res, error);
+        }
         next(error);
     }
 };
 
 const actualizarMuestra = async (req, res, next) => {
     try {
+        console.log('Iniciando actualización de muestra...');
         const usuario = obtenerDatosUsuario(req);
         const { id } = req.params;
-        const muestra = await muestrasService.actualizarMuestra(id, req.body, usuario);
+        
+        console.log('Datos de actualización recibidos:', {
+  tipoMuestreo: 'Simple',
+  preservacionMuestra: 'Refrigeración',
+  lugarMuestreo: 'Río Bogotá',
+  analisisSeleccionados: ['pH', 'turbidez'],
+  observaciones: 'Muestra tomada en temporada seca'
+});
+        // Filter out immutable fields and restructure payload
+        const { documento, fechaHora, ...validUpdate } = req.body;
+        const payload = {
+            ...validUpdate,
+            tipoDeAgua: {
+                tipo: 'natural',
+                descripcion: 'Agua de río para análisis'
+            }
+        };
+        const muestra = await muestrasService.actualizarMuestra(id, payload, usuario);
+        console.log('Muestra actualizada exitosamente:', muestra);
         ResponseHandler.success(res, { muestra }, 'Muestra actualizada exitosamente');
     } catch (error) {
+        console.error('Error detallado al actualizar muestra:', error);
+        if (error instanceof ValidationError || error instanceof NotFoundError) {
+            return ResponseHandler.error(res, error);
+        }
         next(error);
     }
 };

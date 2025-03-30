@@ -1,5 +1,58 @@
 const mongoose = require("mongoose");
 
+const valorCambioSchema = new mongoose.Schema({
+  valorAnterior: {
+    type: String,
+    required: true
+  },
+  valorNuevo: {
+    type: String,
+    required: true
+  },
+  unidad: {
+    type: String
+  }
+}, { _id: false });
+
+const cambiosRealizadosSchema = new mongoose.Schema({
+  pH: {
+    type: valorCambioSchema,
+    required: false
+  },
+  turbidez: {
+    type: valorCambioSchema,
+    required: false
+  },
+  oxigenoDisuelto: {
+    type: valorCambioSchema,
+    required: false
+  },
+  nitratos: {
+    type: valorCambioSchema,
+    required: false
+  },
+  solidosSuspendidos: {
+    type: valorCambioSchema,
+    required: false
+  },
+  fosfatos: {
+    type: valorCambioSchema,
+    required: false
+  },
+  observaciones: {
+    type: {
+      valorAnterior: {
+        type: String,
+        required: true
+      },
+      valorNuevo: {
+        type: String,
+        required: true
+      }
+    },
+    required: false
+  }
+}, { _id: false });
 
 const resultadoSchema = new mongoose.Schema(
   {
@@ -28,7 +81,7 @@ const resultadoSchema = new mongoose.Schema(
       },
       unidad: {
         type: String,
-        default: "mg/L"
+        default: "mv"
       }
     },
     turbidez: {
@@ -81,6 +134,10 @@ const resultadoSchema = new mongoose.Schema(
         default: "mg/L"
       }
     },
+    observaciones: {
+      type: String,
+      trim: true
+    },
     verificado: {
       type: Boolean,
       default: false
@@ -107,7 +164,8 @@ const resultadoSchema = new mongoose.Schema(
         default: Date.now
       },
       cambiosRealizados: {
-        type: mongoose.Schema.Types.Mixed,
+        type: cambiosRealizadosSchema,
+        required: false,
         default: {}
       }
     }]

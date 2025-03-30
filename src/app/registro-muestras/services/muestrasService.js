@@ -3,6 +3,8 @@ const { NotFoundError, DatabaseError, ValidationError } = require('../../../shar
 
 // Validar rol de usuario
 const validarRolUsuario = (usuario) => {
+    console.log('Validando rol de usuario:', usuario);
+    
     if (!usuario) {
         throw new ValidationError('Usuario no autenticado');
     }
@@ -12,8 +14,13 @@ const validarRolUsuario = (usuario) => {
     }
 
     const rolesPermitidos = ['administrador', 'laboratorista'];
-    if (!rolesPermitidos.includes(usuario.rol.toLowerCase())) {
-        throw new ValidationError('No tienes permisos para realizar esta acción');
+    const rolUsuario = usuario.rol.toLowerCase();
+    
+    console.log('Rol del usuario:', rolUsuario);
+    console.log('Roles permitidos:', rolesPermitidos);
+    
+    if (!rolesPermitidos.includes(rolUsuario)) {
+        throw new ValidationError(`No tienes permisos para realizar esta acción. Tu rol es: ${rolUsuario}`);
     }
 
     return true;
@@ -58,16 +65,42 @@ const crearMuestra = async (datosMuestra, usuario) => {
         // Validar el rol del usuario
         validarRolUsuario(usuario);
 
+        // Procesar las firmas
+        const firmas = {
+            cedulaAdministrador: usuario.documento,
+            firmaAdministrador: datosMuestra.firmas?.firmaAdministrador?.firma || '',
+            fechaFirmaAdministrador: new Date(),
+            cedulaCliente: datosMuestra.documento,
+            firmaCliente: datosMuestra.firmas?.firmaCliente?.firma || '',
+            fechaFirmaCliente: new Date()
+        };
+
         const muestra = new Muestra({
             ...datosMuestra,
-            registradoPor: {
-                documento: usuario.documento,
-                nombre: usuario.nombre
-            }
+            firmas,
+            creadoPor: usuario.id,
+            estado: 'Recibida',
+            historial: [{
+                estado: 'Recibida',
+                cedulaadministrador: usuario.documento,
+                nombreadministrador: usuario.nombre,
+                fechaCambio: new Date(),
+                observaciones: 'Muestra registrada inicialmente'
+            }]
         });
+        
+        console.log('Datos de la muestra a crear:', {
+            documento: muestra.documento,
+            tipoMuestra: muestra.tipoMuestra,
+            firmas: muestra.firmas,
+            estado: muestra.estado,
+            historial: muestra.historial[0]
+        });
+
         await muestra.save();
         return muestra;
     } catch (error) {
+        console.error('Error al crear muestra:', error);
         if (error instanceof ValidationError) {
             throw error;
         }
@@ -81,27 +114,60 @@ const actualizarMuestra = async (id, datosActualizacion, usuario) => {
         // Validar el rol del usuario
         validarRolUsuario(usuario);
 
+        // Limpiar el ID de la muestra y validar formato
+        const idLimpio = id.trim().replace(/\/+/g, '/');
+        console.log('ID de muestra a actualizar (limpio):', idLimpio);
+
+        // Filtrar campos inmutables y agregar validaciones
+        const { documento, ...datosActualizados } = datosActualizacion;
+        
+        // Validar tipoMuestreo si está presente
+        if (datosActualizados.tipoMuestreo) {
+            const tiposValidos = ['Simple', 'Compuesto', 'Integrado'];
+            if (!tiposValidos.includes(datosActualizados.tipoMuestreo)) {
+                throw new ValidationError(`Tipo de muestreo no válido. Valores permitidos: ${tiposValidos.join(', ')}`);
+            }
+        }
+
+        console.log('Datos de actualización filtrados:', datosActualizados);
+
+        // Verificar si la muestra existe antes de actualizar
+        const muestraExistente = await Muestra.findOne({ id_muestra: idLimpio });
+        if (!muestraExistente) {
+            throw new NotFoundError('Muestra no encontrada');
+        }
+
         const muestra = await Muestra.findOneAndUpdate(
-            { id_muestra: id },
+            { id_muestra: idLimpio },
             {
-                ...datosActualizacion,
-                'actualizadoPor.usuario': usuario.documento,
-                'actualizadoPor.fecha': new Date()
+                ...datosActualizados,
+                $push: {
+                    actualizadoPor: [{
+                        usuario: usuario.documento,
+                        nombre: usuario.nombre,
+                        fecha: new Date()
+                    }]
+                }
             },
             { 
                 new: true, 
-                runValidators: true
+                runValidators: true,
+                context: 'query'
             }
         );
 
-        if (!muestra) {
-            throw new NotFoundError('Muestra no encontrada');
-        }
+        console.log('Muestra actualizada:', muestra);
         return muestra;
     } catch (error) {
         if (error instanceof NotFoundError || error instanceof ValidationError) {
             throw error;
         }
+        console.error('Error detallado de MongoDB:', {
+            message: error.message,
+            code: error.code,
+            keyPattern: error.keyPattern,
+            keyValue: error.keyValue
+        });
         throw new DatabaseError('Error al actualizar la muestra', error);
     }
 };
@@ -123,10 +189,10 @@ const registrarFirma = async (idMuestra, datosFirma, usuario) => {
         }
 
         // Actualizar las firmas según el rol
-        if (usuario.rol === 'administrador' || usuario.rol === 'laboratorista') {
-            muestra.firmas.firmaLaboratorista = datosFirma.firma;
-            muestra.firmas.cedulaLaboratorista = usuario.documento;
-            muestra.firmas.fechaFirmaLaboratorista = new Date();
+        if (usuario.rol === 'administrador') {
+            muestra.firmas.firmaAdministrador = datosFirma.firma;
+            muestra.firmas.cedulaAdministrador = usuario.documento;
+            muestra.firmas.fechaFirmaAdministrador = new Date();
         } else if (usuario.rol === 'cliente') {
             muestra.firmas.firmaCliente = datosFirma.firma;
             muestra.firmas.cedulaCliente = usuario.documento;

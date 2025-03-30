@@ -4,6 +4,7 @@ const cors = require("cors");
 const path = require("path");
 const connectDB = require("./config/db.js");
 const { ResponseHandler } = require('./src/shared/utils/responseHandler');
+const { registrarAccion } = require('./src/shared/middleware/auditMiddleware');
 
 // Importar rutas
 const muestrasRoutes = require("./src/app/registro-muestras/routes/muestrasRoutes.js");
@@ -12,6 +13,7 @@ const tiposAguaRoutes = require("./src/app/registro-muestras/routes/tiposAguaRou
 const cambiosEstadoRoutes = require("./src/app/cambios-estado/routes/cambioEstadoRoutes.js");
 const resultadosRoutes = require("./src/app/ingreso-resultados/routes/resultadoRoutes.js");
 const firmaRoutes = require("./src/app/firma-digital/routes/firmaRoutes.js");
+const auditoriaRoutes = require("./src/app/auditoria/routes/auditoriaRoutes.js");
 
 const { verificarToken, login } = require('./src/shared/middleware/authMiddleware');
 
@@ -21,22 +23,51 @@ const app = express();
 connectDB();
 
 // Configuración de CORS
+const whitelist = [
+    'http://localhost:5173',  // Frontend en desarrollo local
+    'https://laboratorio-sena.vercel.app', // Frontend en producción (ajusta este dominio al tuyo real)
+];
+
 app.use(cors({
-    origin: '*',
+    origin: function (origin, callback) {
+        // Permitir solicitudes sin origin (como las aplicaciones móviles o postman)
+        if (!origin) return callback(null, true);
+        
+        if (whitelist.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            console.log('Origen bloqueado por CORS:', origin);
+            callback(new Error('No permitido por CORS'));
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Usuario-Documento'],
+    allowedHeaders: [
+        'Content-Type', 
+        'Authorization', 
+        'X-Usuario-Documento',
+        'Accept',
+        'Origin',
+        'X-Requested-With',
+        'X-User-Role'
+    ],
     exposedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
+    credentials: true,
+    maxAge: 86400 // Cache preflight request for 24 hours
 }));
 
 // Middleware para procesar JSON
 app.use(express.json());
 
-// Middleware para procesar el header X-Usuario-Documento
+// Middleware para procesar headers de usuario
 app.use((req, res, next) => {
     const documento = req.headers['x-usuario-documento'];
+    const rol = req.headers['x-user-role'];
+    
     if (documento) {
         req.usuarioDocumento = documento;
+    }
+    if (rol) {
+        req.usuarioRol = rol;
     }
     next();
 });
@@ -54,8 +85,9 @@ app.use([
     "/api/tipos-agua",
     "/api/cambios-estado",
     "/api/ingreso-resultados",
-    "/api/firma-digital"
-], verificarToken);
+    "/api/firma-digital",
+    "/api/auditoria"
+], verificarToken, registrarAccion);
 
 // Rutas protegidas
 app.use("/api/muestras", muestrasRoutes);
@@ -64,6 +96,7 @@ app.use("/api/tipos-agua", tiposAguaRoutes);
 app.use("/api/cambios-estado", cambiosEstadoRoutes);
 app.use("/api/ingreso-resultados", resultadosRoutes);
 app.use("/api/firma-digital", firmaRoutes);
+app.use("/api/auditoria", auditoriaRoutes);
 
 // Ruta de prueba
 app.get("/", (req, res) => {
