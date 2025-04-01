@@ -33,10 +33,17 @@ class AuthenticationError extends AppError {
     }
 }
 
+class AuthorizationError extends AppError {
+    constructor(message = 'Error de autorización') {
+        super(message, 403, 'AUTHORIZATION_ERROR');
+    }
+}
+
 module.exports = {
     AppError,
     NotFoundError,
     ValidationError,
     DatabaseError,
-    AuthenticationError
+    AuthenticationError,
+    AuthorizationError
 }; 
