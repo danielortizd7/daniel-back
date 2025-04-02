@@ -251,12 +251,6 @@ exports.editarResultado = async (req, res) => {
       throw new ValidationError("Este resultado ya fue verificado, no se puede editar");
     }
 
-    // Verificar que sea el mismo laboratorista
-    const laboratorista = req.laboratorista;
-    if (resultado.cedulaLaboratorista !== laboratorista.documento) {
-      throw new AuthorizationError("No autorizado para modificar este resultado");
-    }
-
     // Validar que al menos un campo tenga valor
     if (!pH && !turbidez && !oxigenoDisuelto && 
         !nitratos && !solidosSuspendidos && !fosfatos) {
@@ -339,8 +333,8 @@ exports.editarResultado = async (req, res) => {
         $push: {
           historial: {
             estado: muestra.estado,
-            cedulaadministrador: laboratorista.documento,
-            nombreadministrador: laboratorista.nombre,
+            cedulaadministrador: req.laboratorista.documento,
+            nombreadministrador: req.laboratorista.nombre,
             fechaCambio: new Date(),
             observaciones: "Resultados actualizados",
             detallesCambios: cambiosRealizados
