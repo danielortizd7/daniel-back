@@ -7,7 +7,6 @@ const { Resultado } = require("../../ingreso-resultados/models/resultadoModel");
 const estadosValidos = [
   "Recibida",
   "En análisis",
-  "Pendiente de resultados",
   "Finalizada",
   "Rechazada",
 ];

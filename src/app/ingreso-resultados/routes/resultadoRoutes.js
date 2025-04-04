@@ -4,14 +4,9 @@ const resultadoController = require("../controllers/resultadoController");
 const { verificarLaboratorista, verificarRolAdministrador } = require("../../../shared/middleware/authMiddleware");
 const { resultadoValidators } = require("../../../shared/validators");
 
-// Obtener resultados de una muestra específica - accesible para ambos roles
+// Obtener resultados de una muestra específica
 router.get("/muestra/:idMuestra", 
   resultadoController.obtenerResultados
-);
-
-// Obtener todos los resultados - accesible para ambos roles
-router.get("/resultados", 
-  resultadoController.obtenerTodosResultados
 );
 
 // Las siguientes rutas requieren ser laboratorista

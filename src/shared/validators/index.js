@@ -59,71 +59,13 @@ const cambioEstadoValidators = {
 // Validadores para ingreso-resultados
 const resultadoValidators = {
     guardarResultado: [
-        param('idMuestra')
-            .trim()
-            .notEmpty()
-            .withMessage('El ID de la muestra es obligatorio'),
-        body('pH.valor')
-            .optional()
-            .isFloat({ min: 0, max: 14 })
-            .withMessage('El pH debe ser un número entre 0 y 14'),
-        body('turbidez.valor')
-            .optional()
-            .isFloat({ min: 0 })
-            .withMessage('La turbidez debe ser un número no negativo'),
-        body('oxigenoDisuelto.valor')
-            .optional()
-            .isFloat({ min: 0 })
-            .withMessage('El oxígeno disuelto debe ser un número no negativo'),
-        body('nitratos.valor')
-            .optional()
-            .isFloat({ min: 0 })
-            .withMessage('Los nitratos deben ser un número no negativo'),
-        body('solidosSuspendidos.valor')
-            .optional()
-            .isFloat({ min: 0 })
-            .withMessage('Los sólidos suspendidos deben ser un número no negativo'),
-        body('fosfatos.valor')
-            .optional()
-            .isFloat({ min: 0 })
-            .withMessage('Los fosfatos deben ser un número no negativo')
+        body('resultados').isObject().withMessage('Los resultados deben ser un objeto'),
+        body('observaciones').optional().isString().withMessage('Las observaciones deben ser texto')
     ],
-
     editarResultado: [
-        param('idMuestra')
-            .trim()
-            .notEmpty()
-            .withMessage('El ID de muestra es obligatorio'),
-        body('pH.valor')
-            .optional()
-            .isFloat({ min: 0, max: 14 })
-            .withMessage('El pH debe ser un número entre 0 y 14'),
-        body('turbidez.valor')
-            .optional()
-            .isFloat({ min: 0 })
-            .withMessage('La turbidez debe ser un número no negativo'),
-        body('oxigenoDisuelto.valor')
-            .optional()
-            .isFloat({ min: 0 })
-            .withMessage('El oxígeno disuelto debe ser un número no negativo'),
-        body('nitratos.valor')
-            .optional()
-            .isFloat({ min: 0 })
-            .withMessage('Los nitratos deben ser un número no negativo'),
-        body('solidosSuspendidos.valor')
-            .optional()
-            .isFloat({ min: 0 })
-            .withMessage('Los sólidos suspendidos deben ser un número no negativo'),
-        body('fosfatos.valor')
-            .optional()
-            .isFloat({ min: 0 })
-            .withMessage('Los fosfatos deben ser un número no negativo'),
-        body('observaciones')
-            .optional()
-            .isString()
-            .withMessage('Las observaciones deben ser texto')
+        body('resultados').isObject().withMessage('Los resultados deben ser un objeto'),
+        body('observaciones').optional().isString().withMessage('Las observaciones deben ser texto')
     ],
-
     verificarResultado: [
         param('idMuestra')
             .trim()

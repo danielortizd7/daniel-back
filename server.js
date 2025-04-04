@@ -2,15 +2,15 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
-const connectDB = require("./config/db.js");
+const connectDB = require("./src/config/database.js");
 const { ResponseHandler } = require('./src/shared/utils/responseHandler');
 const { registrarAccion } = require('./src/shared/middleware/auditMiddleware');
 
 // Importar rutas
-const muestrasRoutes = require("./src/app/registro-muestras/routes/muestrasRoutes.js");
-const registroMuestrasRoutes = require("./src/app/registro-muestras/routes/registroMuestrasRoutes.js");
-const tiposAguaRoutes = require("./src/app/registro-muestras/routes/tiposAguaRoutes.js");
-const cambiosEstadoRoutes = require("./src/app/cambios-estado/routes/cambioEstadoRoutes.js");
+const muestrasRoutes = require("./src/app/registro-muestras/routes/muestrasRoutes");
+const senaLabRoutes = require("./src/app/registro-muestras/routes/senaLabRoutes");
+const registroMuestrasRoutes = require("./src/app/registro-muestras/routes/registroMuestrasRoutes");
+const cambiosEstadoRoutes = require("./src/app/cambios-estado/routes/cambioEstadoRoutes");
 const resultadosRoutes = require("./src/app/ingreso-resultados/routes/resultadoRoutes.js");
 const firmaRoutes = require("./src/app/firma-digital/routes/firmaRoutes.js");
 const auditoriaRoutes = require("./src/app/auditoria/routes/auditoriaRoutes.js");
@@ -83,7 +83,6 @@ app.post("/api/auth/login", login);
 app.use([
     "/api/muestras",
     "/api/registro-muestras",
-    "/api/tipos-agua",
     "/api/cambios-estado",
     "/api/ingreso-resultados",
     "/api/firma-digital",
@@ -92,8 +91,8 @@ app.use([
 
 // Rutas protegidas
 app.use("/api/muestras", muestrasRoutes);
+app.use("/api/sena-lab", senaLabRoutes);
 app.use("/api/registro-muestras", registroMuestrasRoutes);
-app.use("/api/tipos-agua", tiposAguaRoutes);
 app.use("/api/cambios-estado", cambiosEstadoRoutes);
 app.use("/api/ingreso-resultados", resultadosRoutes);
 app.use("/api/firma-digital", firmaRoutes);

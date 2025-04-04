@@ -8,15 +8,15 @@ const { ValidationError } = require('../../../shared/errors/AppError');
 // Importar controladores
 const muestrasController = require('../controllers/muestrasController');
 
-// Rutas protegidas con autenticación y validación
-router.get('/muestras', verificarToken, muestrasController.obtenerMuestras);
-router.get('/muestras/tipo/:tipo', verificarToken, muestrasController.obtenerMuestrasPorTipo);
-router.get('/muestras/estado/:estado', verificarToken, muestrasController.obtenerMuestrasPorEstado);
-router.get('/muestras/:id', verificarToken, muestrasController.obtenerMuestra);
+// Rutas de Análisis
+router.get('/analisis', verificarToken, muestrasController.obtenerAnalisis);
+router.get('/analisis/tipo', verificarToken, muestrasController.obtenerAnalisisPorTipoAgua);
 
-// Rutas que requieren rol de administrador
-router.post('/muestras', verificarToken, verificarRolAdministrador, senaLabValidators.crearMuestra, muestrasController.crearMuestra);
-router.put('/muestras/:id', verificarToken, verificarRolAdministrador, senaLabValidators.actualizarMuestra, muestrasController.actualizarMuestra);
-router.delete('/muestras/:id', verificarToken, verificarRolAdministrador, muestrasController.eliminarMuestra);
+// Rutas de Muestras
+router.get('/muestras', verificarToken, muestrasController.obtenerMuestras);
+router.get('/muestras/:id', verificarToken, muestrasController.obtenerMuestra);
+router.post('/muestras', verificarToken, muestrasController.registrarMuestra);
+router.put('/muestras/:id', verificarToken, muestrasController.actualizarMuestra);
+router.delete('/muestras/:id', verificarToken, muestrasController.eliminarMuestra);
 
 module.exports = router; 
