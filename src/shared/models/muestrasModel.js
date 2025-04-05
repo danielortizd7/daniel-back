@@ -185,7 +185,7 @@ const muestraSchema = new mongoose.Schema({
     estado: {
         type: String,
         required: true,
-        enum: ['Recibida', 'En análisis', 'Pendiente de resultados', 'Finalizada', 'Rechazada'],
+        enum: ['Recibida', 'En análisis', 'Finalizada', 'Rechazada'],
         default: 'Recibida'
     },
     rechazoMuestra: {

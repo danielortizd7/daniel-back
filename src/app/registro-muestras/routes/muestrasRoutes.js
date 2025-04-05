@@ -1,25 +1,37 @@
 const express = require('express');
 const router = express.Router();
+const { verificarDocumento, verificarToken, verificarRolAdministrador, verificarLaboratorista } = require('../../../shared/middleware/authMiddleware');
+const { senaLabValidators } = require('../../../shared/validators');
 const muestrasController = require('../controllers/muestrasController');
-const { verificarDocumento } = require('../../../shared/middleware/authMiddleware');
 
-// Rutas de Tipos de Agua
-router.get('/tipos-agua', verificarDocumento, muestrasController.obtenerTiposAgua);
-router.post('/tipos-agua', verificarDocumento, muestrasController.crearTipoAgua);
-router.put('/tipos-agua/:id', verificarDocumento, muestrasController.actualizarTipoAgua);
-
+// ===== RUTAS PÚBLICAS (verificarDocumento) =====
 // Rutas de Análisis
-router.get('/analisis', verificarDocumento, muestrasController.obtenerAnalisis);
-router.get('/analisis/tipo', verificarDocumento, muestrasController.obtenerAnalisisPorTipoAgua);
+router.get('/public/analisis', verificarDocumento, muestrasController.obtenerAnalisis);
+router.get('/public/analisis/tipo', verificarDocumento, muestrasController.obtenerAnalisisPorTipoAgua);
+
+// Ruta para validar usuario
+router.get('/public/validar-usuario', verificarDocumento, muestrasController.validarUsuarioController);
+
+// ===== RUTAS PROTEGIDAS (verificarToken) =====
+// Rutas de Análisis
+router.get('/analisis', verificarToken, muestrasController.obtenerAnalisis);
+router.get('/analisis/tipo', verificarToken, muestrasController.obtenerAnalisisPorTipoAgua);
+
+// Rutas de Tipos de Agua (solo administradores)
+router.get('/tipos-agua', verificarToken, verificarRolAdministrador, muestrasController.obtenerTiposAgua);
+router.post('/tipos-agua', verificarToken, verificarRolAdministrador, muestrasController.crearTipoAgua);
+router.put('/tipos-agua/:id', verificarToken, verificarRolAdministrador, muestrasController.actualizarTipoAgua);
 
 // Rutas de Muestras
-router.post('/', verificarDocumento, muestrasController.registrarMuestra);
-router.get('/', verificarDocumento, muestrasController.obtenerMuestras);
-router.get('/:id', verificarDocumento, muestrasController.obtenerMuestra);
-router.put('/:id', verificarDocumento, muestrasController.actualizarMuestra);
-router.delete('/:id', verificarDocumento, muestrasController.eliminarMuestra);
+router.post('/', verificarToken, muestrasController.registrarMuestra);
+router.get('/', verificarToken, muestrasController.obtenerMuestras);
+router.get('/:id', verificarToken, muestrasController.obtenerMuestra);
+router.put('/:id', verificarToken, muestrasController.actualizarMuestra);
+router.delete('/:id', verificarToken, verificarRolAdministrador, muestrasController.eliminarMuestra);
 
-// Ruta para registrar firmas
-router.post('/:id/firmas', verificarDocumento, muestrasController.registrarFirma);
+// ===== RUTAS DE LABORATORIO (verificarLaboratorista) =====
+// Rutas específicas para laboratoristas
+router.get('/lab', verificarToken, verificarLaboratorista, muestrasController.obtenerMuestras);
+router.get('/lab/:id', verificarToken, verificarLaboratorista, muestrasController.obtenerMuestra);
 
 module.exports = router; 

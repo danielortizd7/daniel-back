@@ -8,8 +8,9 @@ const { registrarAccion } = require('./src/shared/middleware/auditMiddleware');
 
 // Importar rutas
 const muestrasRoutes = require("./src/app/registro-muestras/routes/muestrasRoutes");
-const senaLabRoutes = require("./src/app/registro-muestras/routes/senaLabRoutes");
-const registroMuestrasRoutes = require("./src/app/registro-muestras/routes/registroMuestrasRoutes");
+// Eliminar las importaciones de rutas duplicadas
+// const senaLabRoutes = require("./src/app/registro-muestras/routes/senaLabRoutes");
+// const registroMuestrasRoutes = require("./src/app/registro-muestras/routes/registroMuestrasRoutes");
 const cambiosEstadoRoutes = require("./src/app/cambios-estado/routes/cambioEstadoRoutes");
 const resultadosRoutes = require("./src/app/ingreso-resultados/routes/resultadoRoutes.js");
 const firmaRoutes = require("./src/app/firma-digital/routes/firmaRoutes.js");
@@ -25,6 +26,7 @@ connectDB();
 // Configuración de CORS
 const whitelist = [
     'http://localhost:5173',  // Frontend en desarrollo local
+    'http://localhost:5174',  // Frontend en desarrollo local (puerto alternativo)
     'https://laboratorio-sena.vercel.app', // Frontend en producción
     'https://web-sena-lab.vercel.app' // Frontend en Vercel
 ];
@@ -34,7 +36,7 @@ app.use(cors({
         // Permitir solicitudes sin origin (como las aplicaciones móviles o postman)
         if (!origin) return callback(null, true);
         
-        if (whitelist.indexOf(origin) !== -1) {
+        if (whitelist.includes(origin)) {
             callback(null, true);
         } else {
             console.log('Origen bloqueado por CORS:', origin);
@@ -76,6 +78,17 @@ app.use((req, res, next) => {
 // Middleware para manejar preflight requests
 app.options('*', cors());
 
+// Agregar middleware para manejar errores CORS
+app.use((err, req, res, next) => {
+    if (err.message === 'No permitido por CORS') {
+        return res.status(403).json({
+            error: 'CORS no permitido para este origen',
+            origin: req.headers.origin
+        });
+    }
+    next(err);
+});
+
 // Rutas no protegidas
 app.post("/api/auth/login", login);
 
@@ -91,8 +104,11 @@ app.use([
 
 // Rutas protegidas
 app.use("/api/muestras", muestrasRoutes);
-app.use("/api/sena-lab", senaLabRoutes);
-app.use("/api/registro-muestras", registroMuestrasRoutes);
+// Eliminar las rutas duplicadas
+// app.use("/api/sena-lab", senaLabRoutes);
+// app.use("/api/registro-muestras", registroMuestrasRoutes);
+// Rutas protegidas
+app.use("/api/registro-muestras", muestrasRoutes);
 app.use("/api/cambios-estado", cambiosEstadoRoutes);
 app.use("/api/ingreso-resultados", resultadosRoutes);
 app.use("/api/firma-digital", firmaRoutes);
