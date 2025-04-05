@@ -2,6 +2,12 @@ const mongoose = require("mongoose");
 
 const estadosValidos = ["Recibida", "En análisis", "Finalizada", "Rechazada"];
 
+// Constantes para tipos de muestreo
+const TIPOS_MUESTREO = {
+    SIMPLE: "Simple",
+    COMPUESTO: "Compuesto"
+};
+
 // Esquema para resultados de análisis
 const resultadoAnalisisSchema = new mongoose.Schema({
     valor: {
@@ -111,7 +117,7 @@ const muestraSchema = new mongoose.Schema({
         unique: true
     },
 
-    // . Documento del cliente
+    // 2. Documento del cliente
     documento: {
         type: String,
         required: true
@@ -123,26 +129,34 @@ const muestraSchema = new mongoose.Schema({
         required: true
     },
     
-    // 4. Lugar de Muestreo
+    // 4. Tipo de Muestreo
+    tipoMuestreo: {
+        type: String,
+        required: true,
+        enum: Object.values(TIPOS_MUESTREO),
+        default: TIPOS_MUESTREO.SIMPLE
+    },
+
+    // 5. Lugar de Muestreo
     lugarMuestreo: {
         type: String,
         required: true
     },
     
-    // 5. Fecha y Hora de Muestreo
+    // 6. Fecha y Hora de Muestreo
     fechaHoraMuestreo: {
         type: Date,
         required: true
     },
     
-    // 6. Tipo de Análisis
+    // 7. Tipo de Análisis
     tipoAnalisis: {
         type: String,
         required: true,
         enum: ['Fisicoquímico', 'Microbiológico']
     },
     
-    // 7. Identificación proporcionada por el cliente
+    // 8. Identificación proporcionada por el cliente
     identificacionMuestra: {
         type: String,
         required: true
@@ -150,19 +164,19 @@ const muestraSchema = new mongoose.Schema({
 
     
     
-    // 8. Plan de muestreo
+    // 9. Plan de muestreo
     planMuestreo: {
         type: String,
         required: true
     },
     
-    // 9. Condiciones ambientales
+    // 10. Condiciones ambientales
     condicionesAmbientales: {
         type: String,
         required: true
     },
     
-    // 10. Preservación de la muestra
+    // 11. Preservación de la muestra
     preservacionMuestra: {
         type: String,
         required: true,
@@ -175,13 +189,13 @@ const muestraSchema = new mongoose.Schema({
         }
     },
     
-    // 11. Análisis seleccionados
+    // 12. Análisis seleccionados
     analisisSeleccionados: [{
         type: String,
         required: true
     }],
     
-    // 12. Estado y rechazo
+    // 13. Estado y rechazo
     estado: {
         type: String,
         required: true,
@@ -245,5 +259,6 @@ const TipoAgua = mongoose.models.TipoAgua || mongoose.model('TipoAgua', tipoAgua
 module.exports = {
     Muestra,
     TipoAgua,
-    estadosValidos
+    estadosValidos,
+    TIPOS_MUESTREO
 };

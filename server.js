@@ -8,9 +8,7 @@ const { registrarAccion } = require('./src/shared/middleware/auditMiddleware');
 
 // Importar rutas
 const muestrasRoutes = require("./src/app/registro-muestras/routes/muestrasRoutes");
-// Eliminar las importaciones de rutas duplicadas
-// const senaLabRoutes = require("./src/app/registro-muestras/routes/senaLabRoutes");
-// const registroMuestrasRoutes = require("./src/app/registro-muestras/routes/registroMuestrasRoutes");
+const analisisRoutes = require("./src/app/registro-muestras/routes/analisisRoutes");
 const cambiosEstadoRoutes = require("./src/app/cambios-estado/routes/cambioEstadoRoutes");
 const resultadosRoutes = require("./src/app/ingreso-resultados/routes/resultadoRoutes.js");
 const firmaRoutes = require("./src/app/firma-digital/routes/firmaRoutes.js");
@@ -99,16 +97,14 @@ app.use([
     "/api/cambios-estado",
     "/api/ingreso-resultados",
     "/api/firma-digital",
-    "/api/auditoria"
+    "/api/auditoria",
+    "/api/analisis"
 ], verificarToken, registrarAccion);
 
 // Rutas protegidas
 app.use("/api/muestras", muestrasRoutes);
-// Eliminar las rutas duplicadas
-// app.use("/api/sena-lab", senaLabRoutes);
-// app.use("/api/registro-muestras", registroMuestrasRoutes);
-// Rutas protegidas
 app.use("/api/registro-muestras", muestrasRoutes);
+app.use("/api/analisis", analisisRoutes);
 app.use("/api/cambios-estado", cambiosEstadoRoutes);
 app.use("/api/ingreso-resultados", resultadosRoutes);
 app.use("/api/firma-digital", firmaRoutes);

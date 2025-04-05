@@ -2,7 +2,7 @@ const { validationResult } = require('express-validator');
 const { ResponseHandler } = require('../../../shared/utils/responseHandler');
 const { ValidationError, NotFoundError } = require('../../../shared/errors/AppError');
 const { Muestra, estadosValidos, TipoAgua } = require('../../../shared/models/muestrasModel');
-const { analisisDisponibles, matrizMap, getAnalisisPorTipoAgua } = require('../../../shared/models/analisisModel');
+const { getAnalisisPorTipoAgua } = require('../../../shared/models/analisisModel');
 const Usuario = require('../../../shared/models/usuarioModel');
 const { validarUsuario } = require('../services/usuariosService');
 const muestrasService = require('../services/muestrasService');
@@ -105,16 +105,6 @@ const validarDatosMuestra = (datos) => {
     // 10. Análisis Seleccionados
     if (!Array.isArray(datos.analisisSeleccionados) || datos.analisisSeleccionados.length === 0) {
         errores.push('Debe seleccionar al menos un análisis');
-    } else {
-        // Validar que los análisis seleccionados existan y correspondan al tipo de agua
-        const analisisDisponibles = getAnalisisPorTipoAgua(datos.tipoDeAgua.tipo);
-        const todosLosAnalisis = [...analisisDisponibles.fisicoquimico, ...analisisDisponibles.microbiologico];
-        const analisisInvalidos = datos.analisisSeleccionados.filter(
-            analisis => !todosLosAnalisis.some(a => a.nombre === analisis)
-        );
-        if (analisisInvalidos.length > 0) {
-            errores.push(`Los siguientes análisis no son válidos para el tipo de agua seleccionado: ${analisisInvalidos.join(', ')}`);
-        }
     }
 
     // Validar firmas
@@ -136,39 +126,6 @@ const validarRolAdministrador = (usuario) => {
         throw new ValidationError('Se requieren permisos de administrador');
     }
 
-    return true;
-};
-
-// Función de validación de análisis según tipo de agua
-const validarAnalisisParaTipoAgua = (analisisSeleccionados, tipoAgua, subtipoResidual = null) => {
-
-    // Determinar matriz permitida según tipo de agua
-    let matrizPermitida;
-    switch (tipoAgua) {
-        case 'potable':
-            matrizPermitida = 'AP';
-            break;
-        case 'natural':
-            matrizPermitida = 'AS';
-            break;
-        case 'residual':
-            matrizPermitida = subtipoResidual === 'doméstica' ? 'ARD' : 'ARnD';
-            break;
-        default:
-            throw new ValidationError('Tipo de agua no válido');
-    }
-
-    // Verificar cada análisis seleccionado
-    for (const analisis of analisisSeleccionados) {
-        const analisisInfo = analisisDisponibles.find(a => a.nombre === analisis);
-        if (!analisisInfo) {
-            throw new ValidationError(`El análisis "${analisis}" no existe en el catálogo`);
-        }
-
-        if (!analisisInfo.matriz.includes(matrizPermitida)) {
-            throw new ValidationError(`El análisis "${analisis}" no es válido para ${tipoAgua}${subtipoResidual ? ` ${subtipoResidual}` : ''}`);
-        }
-    }
     return true;
 };
 
@@ -237,33 +194,6 @@ const actualizarTipoAgua = async (req, res, next) => {
         ResponseHandler.success(res, { tipoAgua }, 'Tipo de agua actualizado exitosamente');
     } catch (error) {
         next(error);
-    }
-};
-
-// Análisis 
-const obtenerAnalisis = async (req, res) => {
-    try {
-        ResponseHandler.success(res, { 
-            analisis: analisisDisponibles,
-            matrices: matrizMap
-        }, 'Análisis obtenidos correctamente');
-    } catch (error) {
-        ResponseHandler.error(res, error);
-    }
-};
-
-const obtenerAnalisisPorTipoAgua = async (req, res) => {
-    try {
-        const { tipo, subtipo } = req.query;
-        const analisis = getAnalisisPorTipoAgua(tipo, subtipo);
-        ResponseHandler.success(res, { 
-            analisis,
-            tipo,
-            subtipo,
-            matriz: matrizMap[tipo === 'residual' ? (subtipo === 'domestica' ? 'ARD' : 'ARnD') : tipo === 'potable' ? 'AP' : 'AS']
-        }, 'Análisis filtrados correctamente');
-    } catch (error) {
-        ResponseHandler.error(res, error);
     }
 };
 
@@ -360,7 +290,7 @@ const registrarMuestra = async (req, res, next) => {
             id_muestra,
             estado: 'Recibida',
             firmas,
-            creadoPor: usuarioId, // Usar el ID convertido a ObjectId
+            creadoPor: usuarioId,
             historial: [{
                 estado: 'Recibida',
                 cedulaadministrador: req.usuario.documento || datos.documento,
@@ -471,10 +401,6 @@ module.exports = {
     obtenerTiposAgua,
     crearTipoAgua,
     actualizarTipoAgua,
-    
-    // Controladores de Análisis
-    obtenerAnalisis,
-    obtenerAnalisisPorTipoAgua,
     
     // Controladores de Muestras
     obtenerMuestras,
