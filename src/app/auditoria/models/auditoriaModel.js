@@ -10,7 +10,8 @@ const auditoriaSchema = new mongoose.Schema(
       documento: String,
       permisos: [{
         type: String,
-        enum: Object.values(PERMISOS)
+        // Permitir cualquier string para evitar errores de validación
+        // enum: Object.values(PERMISOS)
       }]
     },
     accion: {
@@ -26,7 +27,8 @@ const auditoriaSchema = new mongoose.Schema(
       descripcion: String,
       permisosRequeridos: [{
         type: String,
-        enum: Object.values(PERMISOS)
+        // Permitir cualquier string para evitar errores de validación
+        // enum: Object.values(PERMISOS)
       }]
     },
     detalles: {

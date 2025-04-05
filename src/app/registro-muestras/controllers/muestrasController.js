@@ -1,7 +1,7 @@
 const { validationResult } = require('express-validator');
 const { ResponseHandler } = require('../../../shared/utils/responseHandler');
 const { ValidationError, NotFoundError } = require('../../../shared/errors/AppError');
-const { Muestra, estadosValidos, TipoAgua } = require('../../../shared/models/muestrasModel');
+const { Muestra, estadosValidos, TipoAgua, TIPOS_AGUA, SUBTIPOS_RESIDUAL } = require('../../../shared/models/muestrasModel');
 const { getAnalisisPorTipoAgua } = require('../../../shared/models/analisisModel');
 const Usuario = require('../../../shared/models/usuarioModel');
 const { validarUsuario } = require('../services/usuariosService');
@@ -10,8 +10,10 @@ const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 
-const USUARIOS_API = 'https://back-usuarios-f.onrender.com/api/usuarios';
-const BUSCAR_USUARIO_API = 'https://back-usuarios-f.onrender.com/api/usuarios';
+// URL base para las peticiones a la API de usuarios
+const BASE_URL = process.env.NODE_ENV === 'production' 
+    ? 'https://backend-sena-lab-1-qpzp.onrender.com'
+    : 'http://localhost:5000';
 
 //Funciones de Utilidad 
 const obtenerDatosUsuario = (req) => {
@@ -77,6 +79,15 @@ const validarDatosMuestra = (datos) => {
     if (!datos.tipoDeAgua?.tipo) errores.push('El tipo de agua es requerido');
     if (!datos.tipoDeAgua?.codigo) errores.push('El código del tipo de agua es requerido');
     if (!datos.tipoDeAgua?.descripcion) errores.push('La descripción del tipo de agua es requerida');
+    
+    // Validación específica para agua residual
+    if (datos.tipoDeAgua?.tipo === TIPOS_AGUA.RESIDUAL) {
+        if (!datos.tipoDeAgua?.subtipoResidual) {
+            errores.push('Para agua residual debe especificar si es doméstica o no doméstica');
+        } else if (!Object.values(SUBTIPOS_RESIDUAL).includes(datos.tipoDeAgua.subtipoResidual)) {
+            errores.push('El subtipo de agua residual debe ser "domestica" o "no_domestica"');
+        }
+    }
     
     // 3. Lugar de Muestreo
     if (!datos.lugarMuestreo) errores.push('El lugar de muestreo es requerido');
@@ -198,9 +209,42 @@ const actualizarTipoAgua = async (req, res, next) => {
 };
 
 //Controladores de Muestras
+const formatearFechaHora = (fecha) => {
+    if (!fecha) return null;
+    
+    const fechaObj = new Date(fecha);
+    
+    // Formatear fecha
+    const dia = fechaObj.getDate().toString().padStart(2, '0');
+    const mes = (fechaObj.getMonth() + 1).toString().padStart(2, '0');
+    const año = fechaObj.getFullYear();
+    
+    // Formatear hora en formato 12 horas
+    let horas = fechaObj.getHours();
+    const minutos = fechaObj.getMinutes().toString().padStart(2, '0');
+    const ampm = horas >= 12 ? 'PM' : 'AM';
+    horas = horas % 12;
+    horas = horas ? horas : 12; // la hora '0' debe ser '12'
+    
+    return {
+        fecha: `${dia}/${mes}/${año}`,
+        hora: `${horas}:${minutos} ${ampm}`
+    };
+};
+
 const obtenerMuestras = async (req, res, next) => {
     try {
-        const { tipo, estado, fechaInicio, fechaFin } = req.query;
+        const { 
+            tipo, 
+            estado, 
+            fechaInicio, 
+            fechaFin,
+            page = 1,
+            limit = 10,
+            sortBy = 'fechaHoraMuestreo',
+            sortOrder = 'desc'
+        } = req.query;
+
         let filtro = {};
 
         // Aplicar filtros si se proporcionan
@@ -212,12 +256,48 @@ const obtenerMuestras = async (req, res, next) => {
             if (fechaFin) filtro.fechaHoraMuestreo.$lte = new Date(fechaFin);
         }
 
-        const muestras = await Muestra.find(filtro)
-            .populate('creadoPor', 'nombre email documento')
-            .populate('actualizadoPor.usuario', 'nombre email documento')
-            .sort({ fechaHoraMuestreo: -1 });
+        // Calcular skip para paginación
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const limitInt = parseInt(limit);
 
-        ResponseHandler.success(res, { muestras }, 'Muestras obtenidas correctamente');
+        // Configurar el ordenamiento
+        const sort = {};
+        sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+        // Ejecutar las consultas en paralelo
+        const [muestras, total] = await Promise.all([
+            Muestra.find(filtro)
+                .select('id_muestra documento tipoDeAgua lugarMuestreo fechaHoraMuestreo estado')
+                .populate('creadoPor', 'nombre email documento')
+                .sort(sort)
+                .skip(skip)
+                .limit(limitInt)
+                .lean(), // Usar lean() para obtener objetos JavaScript planos
+            Muestra.countDocuments(filtro)
+        ]);
+
+        // Formatear las fechas en las muestras
+        const muestrasFormateadas = muestras.map(muestra => ({
+            ...muestra,
+            fechaHoraMuestreo: formatearFechaHora(muestra.fechaHoraMuestreo)
+        }));
+
+        // Calcular información de paginación
+        const totalPages = Math.ceil(total / limitInt);
+        const hasNextPage = page < totalPages;
+        const hasPrevPage = page > 1;
+
+        ResponseHandler.success(res, {
+            muestras: muestrasFormateadas,
+            pagination: {
+                total,
+                totalPages,
+                currentPage: parseInt(page),
+                limit: limitInt,
+                hasNextPage,
+                hasPrevPage
+            }
+        }, 'Muestras obtenidas correctamente');
     } catch (error) {
         next(error);
     }
@@ -228,15 +308,105 @@ const obtenerMuestra = async (req, res, next) => {
         const { id } = req.params;
         const muestra = await Muestra.findOne({ id_muestra: id })
             .populate('creadoPor', 'nombre email documento')
-            .populate('actualizadoPor.usuario', 'nombre email documento');
+            .lean();
 
         if (!muestra) {
             throw new NotFoundError('Muestra no encontrada');
         }
 
-        ResponseHandler.success(res, { muestra }, 'Muestra obtenida correctamente');
+        // Obtener datos actualizados de los usuarios
+        const [datosCliente, datosAdministrador] = await Promise.all([
+            obtenerDatosUsuarioExterno(muestra.firmas.documentoCliente),
+            obtenerDatosUsuarioExterno(muestra.firmas.documentoAdministrador)
+        ]);
+
+        // Formatear la fecha y actualizar datos de usuarios
+        const muestraFormateada = {
+            ...muestra,
+            fechaHoraMuestreo: formatearFechaHora(muestra.fechaHoraMuestreo),
+            firmas: {
+                ...muestra.firmas,
+                fechaFirmaAdministrador: formatearFechaHora(muestra.firmas.fechaFirmaAdministrador),
+                fechaFirmaCliente: formatearFechaHora(muestra.firmas.fechaFirmaCliente),
+                datosAdministrador,
+                datosCliente
+            },
+            historial: muestra.historial.map(h => ({
+                ...h,
+                fechaCambio: formatearFechaHora(h.fechaCambio)
+            })),
+            createdAt: formatearFechaHora(muestra.createdAt),
+            updatedAt: formatearFechaHora(muestra.updatedAt)
+        };
+
+        ResponseHandler.success(res, { muestra: muestraFormateada }, 'Muestra obtenida correctamente');
     } catch (error) {
         next(error);
+    }
+};
+
+const obtenerDatosUsuarioExterno = async (documento) => {
+    try {
+        console.log(`Consultando API externa para documento: ${documento}`);
+        let userData;
+
+        // Primero intentar con la ruta específica de roles
+        try {
+            const responseRoles = await axios.get(`${BASE_URL}/api/usuarios/roles/${documento}`);
+            if (responseRoles.data && responseRoles.data.nombre) {
+                userData = responseRoles.data;
+                console.log('Usuario encontrado en API (roles):', userData);
+            }
+        } catch (rolesError) {
+            console.log('No se encontró en roles, intentando ruta general');
+        }
+
+        // Si no se encontró en roles, intentar con la ruta general
+        if (!userData) {
+            const response = await axios.get(`${BASE_URL}/api/usuarios`, {
+                params: { documento }
+            });
+            console.log('Respuesta de la API general:', response.data);
+
+            if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+                userData = response.data[0];
+                console.log('Usuario encontrado en API general:', userData);
+            }
+        }
+
+        // Si aún no tenemos datos, buscar en la base de datos local
+        if (!userData) {
+            console.log('Buscando en base de datos local');
+            const usuarioLocal = await Usuario.findOne({ documento }).lean();
+            if (usuarioLocal) {
+                userData = usuarioLocal;
+                console.log('Usuario encontrado en base de datos local:', userData);
+            }
+        }
+
+        // Si encontramos datos del usuario, devolverlos
+        if (userData) {
+            return {
+                nombre: userData.nombre || 'Usuario no identificado',
+                documento: userData.documento,
+                email: userData.email,
+                telefono: userData.telefono,
+                direccion: userData.direccion
+            };
+        }
+
+        // Si no se encontró el usuario en ninguna fuente
+        console.log(`No se encontró usuario para documento: ${documento}, usando valor por defecto`);
+        return {
+            nombre: 'Usuario no identificado',
+            documento: documento
+        };
+    } catch (error) {
+        console.error('Error al obtener datos del usuario:', error.message);
+        return {
+            nombre: 'Usuario no identificado',
+            documento: documento
+        };
     }
 };
 
@@ -246,6 +416,38 @@ const registrarMuestra = async (req, res, next) => {
         
         // Validar los datos de la muestra
         validarDatosMuestra(datos);
+
+        // Verificar que tenemos el ID del usuario
+        if (!req.usuario || !req.usuario.id) {
+            throw new ValidationError('Usuario no autenticado o ID no disponible');
+        }
+
+        // Obtener datos del administrador
+        let datosAdministrador;
+        try {
+            datosAdministrador = await obtenerDatosUsuarioExterno(req.usuario.documento);
+            if (!datosAdministrador || !datosAdministrador.nombre) {
+                throw new Error('No se pudieron obtener los datos del administrador');
+            }
+            console.log('Datos del administrador:', datosAdministrador);
+        } catch (error) {
+            console.error('Error al obtener datos del administrador:', error);
+            throw new ValidationError(`Error al obtener datos del administrador: ${error.message}`);
+        }
+
+        // Obtener datos del cliente
+        let datosCliente;
+        try {
+            datosCliente = await obtenerDatosUsuarioExterno(datos.documento);
+            console.log('Datos del cliente:', datosCliente);
+        } catch (error) {
+            console.error('Error al obtener datos del cliente:', error);
+            datosCliente = {
+                documento: datos.documento,
+                nombre: 'Cliente no identificado',
+                rol: 'cliente'
+            };
+        }
 
         // Generar ID único de muestra
         const fecha = new Date();
@@ -266,46 +468,78 @@ const registrarMuestra = async (req, res, next) => {
         
         const id_muestra = `${datos.tipoDeAgua.codigo}${datos.tipoAnalisis.charAt(0)}${año}${mes}${dia}${consecutivo}`;
 
-        // Verificar que tenemos el ID del usuario
-        if (!req.usuario || !req.usuario.id) {
-            throw new ValidationError('Usuario no autenticado o ID no disponible');
-        }
-
-        // Convertir el ID a ObjectId
-        const usuarioId = new mongoose.Types.ObjectId(req.usuario.id);
-
-        // Preparar las firmas en el formato correcto
-        const firmas = {
-            cedulaAdministrador: req.usuario.documento || datos.documento,
-            firmaAdministrador: datos.firmas?.firmaAdministrador?.firma || '',
-            fechaFirmaAdministrador: datos.firmas?.firmaAdministrador?.fecha || new Date(),
-            cedulaCliente: datos.documento,
-            firmaCliente: datos.firmas?.firmaCliente?.firma || '',
-            fechaFirmaCliente: datos.firmas?.firmaCliente?.fecha || new Date()
-        };
-
         // Crear la muestra con los datos formateados correctamente
         const muestra = new Muestra({
             ...datos,
             id_muestra,
+            cliente: datosCliente,
             estado: 'Recibida',
-            firmas,
-            creadoPor: usuarioId,
+            firmas: {
+                administrador: datosAdministrador,
+                cliente: datosCliente,
+                firmaAdministrador: datos.firmas?.firmaAdministrador?.firma || '',
+                fechaFirmaAdministrador: datos.firmas?.firmaAdministrador?.fecha || new Date(),
+                firmaCliente: datos.firmas?.firmaCliente?.firma || '',
+                fechaFirmaCliente: datos.firmas?.firmaCliente?.fecha || new Date()
+            },
+            creadoPor: datosAdministrador,
             historial: [{
                 estado: 'Recibida',
-                cedulaadministrador: req.usuario.documento || datos.documento,
-                nombreadministrador: req.usuario.nombre || 'Sistema',
+                administrador: datosAdministrador,
                 fechaCambio: new Date(),
                 observaciones: datos.observaciones || 'Registro inicial de muestra'
-            }]
+            }],
+            actualizadoPor: []
         });
 
-        await muestra.save();
-        ResponseHandler.success(res, { muestra }, 'Muestra registrada exitosamente');
+        console.log('Datos de la muestra antes de guardar:', {
+            cliente: muestra.cliente,
+            creadoPor: muestra.creadoPor,
+            firmas: muestra.firmas
+        });
+
+        // Guardar la muestra
+        const muestraGuardada = await muestra.save();
+
+        // Formatear las fechas para la respuesta
+        const formatearFecha = (fecha) => {
+            return {
+                fecha: fecha.toLocaleDateString('es-CO'),
+                hora: fecha.toLocaleTimeString('es-CO', { hour: 'numeric', minute: 'numeric', hour12: true })
+            };
+        };
+
+        // Preparar la respuesta
+        const respuesta = {
+            ...muestraGuardada.toObject(),
+            createdAt: formatearFecha(muestraGuardada.createdAt),
+            updatedAt: formatearFecha(muestraGuardada.updatedAt),
+            fechaHoraMuestreo: formatearFecha(muestraGuardada.fechaHoraMuestreo),
+            historial: muestraGuardada.historial.map(h => ({
+                ...h,
+                fechaCambio: formatearFecha(h.fechaCambio)
+            })),
+            firmas: {
+                ...muestraGuardada.firmas,
+                fechaFirmaAdministrador: formatearFecha(muestraGuardada.firmas.fechaFirmaAdministrador),
+                fechaFirmaCliente: formatearFecha(muestraGuardada.firmas.fechaFirmaCliente)
+            }
+        };
+
+        return res.status(201).json({
+            success: true,
+            message: 'Muestra registrada exitosamente',
+            data: {
+                muestra: respuesta
+            }
+        });
 
     } catch (error) {
         console.error('Error al registrar muestra:', error);
-        return ResponseHandler.error(res, error);
+        if (error instanceof ValidationError) {
+            return ResponseHandler.error(res, error);
+        }
+        return ResponseHandler.error(res, new Error('Error interno al registrar la muestra'));
     }
 };
 
@@ -340,7 +574,7 @@ const actualizarMuestra = async (req, res, next) => {
                 ...datosActualizacion,
                 $push: {
                     actualizadoPor: {
-                        usuario: usuario.id,
+                        documento: usuario.documento,
                         nombre: usuario.nombre,
                         fecha: new Date(),
                         accion: 'Actualización de muestra'
@@ -354,7 +588,32 @@ const actualizarMuestra = async (req, res, next) => {
             throw new NotFoundError('Muestra no encontrada');
         }
 
-        ResponseHandler.success(res, { muestra }, 'Muestra actualizada exitosamente');
+        // Formatear fechas para la respuesta
+        const formatearFecha = (fecha) => {
+            return {
+                fecha: fecha.toLocaleDateString('es-CO'),
+                hora: fecha.toLocaleTimeString('es-CO', { hour: 'numeric', minute: 'numeric', hour12: true })
+            };
+        };
+
+        // Preparar la respuesta
+        const respuesta = {
+            ...muestra.toObject(),
+            createdAt: formatearFecha(muestra.createdAt),
+            updatedAt: formatearFecha(muestra.updatedAt),
+            fechaHoraMuestreo: formatearFecha(muestra.fechaHoraMuestreo),
+            historial: muestra.historial.map(h => ({
+                ...h,
+                fechaCambio: formatearFecha(h.fechaCambio)
+            })),
+            firmas: {
+                ...muestra.firmas,
+                fechaFirmaAdministrador: formatearFecha(muestra.firmas.fechaFirmaAdministrador),
+                fechaFirmaCliente: formatearFecha(muestra.firmas.fechaFirmaCliente)
+            }
+        };
+
+        ResponseHandler.success(res, { muestra: respuesta }, 'Muestra actualizada exitosamente');
     } catch (error) {
         if (error instanceof ValidationError || error instanceof NotFoundError) {
             return ResponseHandler.error(res, error);

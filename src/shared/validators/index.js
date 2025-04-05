@@ -52,7 +52,7 @@ const cambioEstadoValidators = {
             .trim(),
         body('estado')
             .notEmpty().withMessage('El estado es requerido')
-            .isIn(['Recibida', 'En análisis', 'Pendiente de resultados', 'Finalizada', 'Rechazada']).withMessage('Estado no válido')
+            .isIn(['Recibida', 'En análisis', 'Finalizada', 'Rechazada']).withMessage('Estado no válido')
     ]
 };
 
@@ -214,7 +214,7 @@ const senaLabValidators = {
             .isLength({ min: 10 }).withMessage('La descripción debe tener al menos 10 caracteres'),
         body('estado')
             .optional()
-            .isIn(['Recibida', 'En análisis', 'Pendiente de resultados', 'Finalizada', 'Rechazada'])
+            .isIn(['Recibida', 'En análisis','Finalizada', 'Rechazada'])
             .withMessage('Estado no válido'),
         body('observaciones')
             .optional()
