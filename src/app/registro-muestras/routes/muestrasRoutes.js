@@ -8,6 +8,9 @@ const muestrasController = require('../controllers/muestrasController');
 // Ruta para validar usuario
 router.get('/public/validar-usuario', verificarDocumento, muestrasController.validarUsuarioController);
 
+// Ruta pública para obtener muestras
+router.get('/', muestrasController.obtenerMuestras);
+
 // ===== RUTAS PROTEGIDAS (verificarToken) =====
 // Rutas de Tipos de Agua (solo administradores)
 router.get('/tipos-agua', verificarToken, verificarRolAdministrador, muestrasController.obtenerTiposAgua);
@@ -16,7 +19,6 @@ router.put('/tipos-agua/:id', verificarToken, verificarRolAdministrador, muestra
 
 // Rutas de Muestras
 router.post('/', verificarToken, muestrasController.registrarMuestra);
-router.get('/', verificarToken, muestrasController.obtenerMuestras);
 router.get('/:id', verificarToken, muestrasController.obtenerMuestra);
 router.put('/:id', verificarToken, muestrasController.actualizarMuestra);
 router.delete('/:id', verificarToken, verificarRolAdministrador, muestrasController.eliminarMuestra);

@@ -92,7 +92,7 @@ app.post("/api/auth/login", login);
 
 // Middleware para verificar token en rutas protegidas
 app.use([
-    "/api/muestras",
+    "/api/muestras/:id",
     "/api/registro-muestras",
     "/api/cambios-estado",
     "/api/ingreso-resultados",
@@ -101,8 +101,10 @@ app.use([
     "/api/analisis"
 ], verificarToken, registrarAccion);
 
-// Rutas protegidas
+// Rutas públicas
 app.use("/api/muestras", muestrasRoutes);
+
+// Rutas protegidas
 app.use("/api/registro-muestras", muestrasRoutes);
 app.use("/api/analisis", analisisRoutes);
 app.use("/api/cambios-estado", cambiosEstadoRoutes);
